@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import * as THREE from '../dist/vendor/three.module.js';
+import {GameEngine} from '../dist/engine.js';
+import {buildCreature,buildExplorer} from '../dist/creatures.js';
+import {buildArenaGarden} from '../dist/arena.js';
+import {buildKeeper} from '../dist/keepers.js';
+import {SPECIES} from '../dist/catalog.js';
+test('the delayed native dialog close event does not cancel a newly chosen walking route',()=>{const e=Object.create(GameEngine.prototype);Object.assign(e,{modal:true,keys:new Set(),joystick:{x:0,y:0},path:[],goalMarker:{visible:false}});e.setModal(false);e.path=[{x:20,z:20}];e.pendingInteract={kind:'waypost'};e.setModal(false);assert.equal(e.path.length,1);assert.equal(e.pendingInteract.kind,'waypost');e.setModal(true);assert.equal(e.path.length,0);assert.equal(e.pendingInteract,null);});
+test('manual movement cancellation clears pending interaction and held input',()=>{const e=Object.create(GameEngine.prototype);Object.assign(e,{keys:new Set(['w']),joystick:{x:1,y:1},path:[{}],pendingInteract:{},goalMarker:{visible:true},drag:{}});e.clearMovement();assert.equal(e.keys.size,0);assert.equal(e.pendingInteract,null);assert.equal(e.path.length,0);assert.equal(e.goalMarker.visible,false);assert.deepEqual(e.joystick,{x:0,y:0});});
+test('all distinct creatures, explorer and regional arenas animate finite geometry and dispose independently',()=>{const models=[...SPECIES.map(s=>buildCreature(s.id,{detail:'low'})),buildExplorer(),...['meadow','shore','grove'].map(id=>buildKeeper(id)),...['leaf','tide','ember','star'].map(type=>buildArenaGarden(type))];try{for(const m of models){for(const time of [0,.5,3.4,20]){m.animate(time,{moving:1,mood:'happy',attack:1});m.group.updateMatrixWorld(true);m.group.traverse(o=>{assert.ok(o.matrixWorld.elements.every(Number.isFinite));if(o.geometry){assert.ok(o.geometry.attributes.position.array.every(Number.isFinite));}});}const box=new THREE.Box3().setFromObject(m.group);assert.ok(!box.isEmpty());assert.ok(box.max.y<20);}}finally{for(const m of models){m.dispose();m.dispose();}}});

@@ -1,0 +1,13 @@
+// Quiet, synthesized field music. A user gesture is required to enable sound.
+export class IslandAudio {
+ constructor(){this.enabled=false;this.region='camp';this.battle=false;this.step=0;this.nodes=new Set();this.hidden=false;this.generation=0;this.timer=null;this.effects=new Set();}
+ async enable(){const generation=++this.generation;const Context=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Context)return false;this.context??=new Context();try{await this.context.resume();}catch{return false;}if(generation!==this.generation)return false;this.enabled=true;this.schedule();return true;}
+ disable(){this.generation++;this.enabled=false;clearTimeout(this.timer);this.clearEffects();this.stopNotes();}
+ suspend(hidden){this.hidden=hidden;if(hidden){clearTimeout(this.timer);this.clearEffects();this.stopNotes();}else if(this.enabled)this.schedule();}
+ clearEffects(){for(const timer of this.effects)clearTimeout(timer);this.effects.clear();}
+ stopNotes(){for(const n of this.nodes){try{n.osc.stop();}catch{}n.gain.disconnect();}this.nodes.clear();}
+ note(freq,duration=.7,volume=.045,type='sine'){if(!this.enabled||this.hidden||!this.context||this.nodes.size>12)return;const t=this.context.currentTime,osc=this.context.createOscillator(),gain=this.context.createGain();osc.type=type;osc.frequency.value=freq;gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(volume,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);osc.connect(gain);gain.connect(this.context.destination);const n={osc,gain};this.nodes.add(n);osc.onended=()=>{this.nodes.delete(n);gain.disconnect();osc.disconnect();};osc.start(t);osc.stop(t+duration+.03);}
+ schedule(){clearTimeout(this.timer);if(!this.enabled||this.hidden)return;const notes=this.battle?[0,7,10,7,3,7,12,10]:this.region==='shore'?[0,7,12,14,9,7,4,2]:this.region==='grove'?[0,3,7,10,12,7,3,2]:[0,4,7,12,9,7,4,2];const root=this.battle?220:this.region==='grove'?196:220;const i=this.step++%16;if(i%2===0||this.battle)this.note(root*2**(notes[Math.floor(i/2)]/12),this.battle?.4:1.05,.018,'sine');if(i%8===0)this.note(root/2,1.6,.014,'triangle');this.timer=setTimeout(()=>this.schedule(),this.battle?240:440);}
+ event(name){if(!this.enabled||this.hidden)return;if(name==='friend'||name==='win'){[0,4,7,12].forEach((v,i)=>{const timer=setTimeout(()=>{this.effects.delete(timer);this.note(330*2**(v/12),.7,.05);},i*100);this.effects.add(timer);});}else if(name==='hit')this.note(165,.12,.035,'triangle');else if(name==='heal')this.note(520,.5,.035);else this.note(440,.12,.02);}
+ dispose(){this.disable();this.context?.close();}
+}
