@@ -1,4 +1,4 @@
-export const TYPES = Object.freeze({leaf:{name:'わかば',icon:'❧',color:'#79ba77',strong:'tide'},tide:{name:'しずく',icon:'≈',color:'#71bbd3',strong:'ember'},ember:{name:'ほのお',icon:'✦',color:'#efae67',strong:'leaf'},star:{name:'ほし',icon:'✧',color:'#bb9fde',strong:null}});
+export const TYPES = Object.freeze({leaf:{name:'わかば',icon:'❧',color:'#79ba77',strong:'tide'},tide:{name:'しずく',icon:'≈',color:'#71bbd3',strong:'ember'},ember:{name:'ほのお',icon:'✦',color:'#efae67',strong:'leaf'},star:{name:'ほし',icon:'✧',color:'#bb9fde',strong:null},storm:{name:'あらし',icon:'ϟ',color:'#68d9ef',strong:null}});
 export const SPECIES = Object.freeze([
   {id:'sprig',name:'ハネハ',type:'leaf',kind:'はっぱみみ',bio:'耳で風をあつめる、はずかしがりや。なかよくなると、小さな種をわけてくれる。',trait:'すばやい',hp:30,atk:9,def:7,skill:'はっぱのワルツ',color:'#b2d890',region:'meadow',pos:[-17,-12],level:2},
   {id:'puff',name:'ポポタン',type:'leaf',kind:'たんぽぽはり',bio:'びっくりすると、背中の綿毛がふわり。ねむっているあいだも花の夢を見ている。',trait:'がまんづよい',hp:38,atk:7,def:10,skill:'わたげのかぜ',color:'#e9d987',region:'meadow',pos:[-32,-5],level:2},
@@ -14,7 +14,9 @@ export const SPECIES = Object.freeze([
   {id:'drake',name:'コガリュウ',type:'ember',kind:'こだねりゅう',bio:'大きく飛ぶ練習をしている小さな竜。じょうずにできると、こちらを見てほめてほしがる。',trait:'まけずぎらい',hp:36,atk:12,def:8,skill:'ゆうやけのつばさ',color:'#dba486',region:'grove',pos:[7,-42],level:5},
   {id:'star',name:'ルナミィ',type:'star',kind:'ほしみみ',bio:'島のなかよしの灯りにひかれて、空からやってきた。きみとの冒険を、星に話している。',trait:'ふしぎ',hp:40,atk:12,def:10,skill:'ほしのハーモニー',color:'#bcaedc',region:'altar',pos:[-5,-47],level:7},
 ].map(Object.freeze));
-export const BY_ID = Object.freeze(Object.assign(Object.create(null),Object.fromEntries(SPECIES.map(s=>[s.id,s]))));
+export const BOSS = Object.freeze({id:'storm',name:'嵐竜ヴォルガ',type:'storm',kind:'嵐の王',bio:'島の灯りをのみこむ巨大な嵐竜。13のなかまの力をあわせて、嵐の中心に挑もう。',hp:160,atk:13,def:11,skill:'テンペストブレイク',level:8,pos:[-5,-47]});
+export const isCollectionComplete=collection=>SPECIES.every(s=>!!collection?.[s.id]);
+export const BY_ID = Object.freeze(Object.assign(Object.create(null),Object.fromEntries([...SPECIES,BOSS].map(s=>[s.id,s]))));
 export const STARTERS = ['sprig','otter','ember'];
 export const SKILL_ROLES=Object.freeze({
  sprig:'power',puff:'guard',fawn:'heal',moss:'guard',otter:'tempo',fin:'heal',shell:'guard',manta:'power',ember:'power',moth:'tempo',ram:'guard',drake:'power',star:'heal'

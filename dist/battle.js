@@ -8,22 +8,22 @@ export function createBattle(collection,team,opponents,{kind='wild',target=null}
  const allies=team.filter(id=>collection[id]&&BY_ID[id]).slice(0,3).map(id=>combatant(id,collection[id].level,collection[id].hp));
  const enemies=opponents.filter(c=>BY_ID[c.id]).map(c=>combatant(c.id,c.level));
  if(!allies.some(c=>c.hp>0)||!enemies.length)throw new Error('Battle needs healthy teams');
- return {kind,target,allies,enemies,active:allies.findIndex(c=>c.hp>0),enemy:0,turn:0,status:'active',log:[{text:kind==='keeper'?'力をあわせて、しるしに挑戦！':'まずは、あいさつのバトル！',tone:'info'}],events:[]};
+ return {kind,target,allies,enemies,active:allies.findIndex(c=>c.hp>0),enemy:0,turn:0,status:'active',log:[{text:kind==='boss'?'13のなかまと、島を救う最終決戦！':kind==='keeper'?'力をあわせて、しるしに挑戦！':'まずは、あいさつのバトル！',tone:'info'}],events:[]};
 }
 function say(b,text,tone='info'){b.log.push({text,tone});if(b.log.length>7)b.log.shift();}
 function hit(b,attacker,defender,special,side){
- const mult=special?effectiveness(BY_ID[attacker.id].type,BY_ID[defender.id].type):1;
+ const element=attacker.type||BY_ID[attacker.id].type;const mult=special?effectiveness(element,defender.type||BY_ID[defender.id].type):1;
  const role=SKILL_ROLES[attacker.id];
  const raw=((special?16:10)+attacker.atk*.8-defender.def*.4)*(special?({power:1.08,guard:.82,heal:.78,tempo:.92}[role]||1):1);
- const damage=Math.max(3,Math.round(raw*mult*(side==='enemy'?(b.kind==='wild'?.78:.92):1)*(defender.guard?.4:1)));
- const dealt=Math.min(defender.hp,damage);defender.hp=Math.max(0,defender.hp-damage);defender.guard=false;
+ const damage=Math.max(3,Math.round(raw*mult*(side==='enemy'?(b.kind==='wild'?.78:.92):1)*(b.kind==='boss'&&side==='enemy'&&special?(b.phase===2?1.38:1.25):1)*(defender.guard?.4:1)));
+ const inputGuard=defender.guard;const dealt=Math.min(defender.hp,damage);defender.hp=Math.max(0,defender.hp-damage);defender.guard=false;
  if(special)attacker.energy-=2;else attacker.energy=Math.min(5,attacker.energy+1);
  const name=BY_ID[attacker.id].name,skill=special?BY_ID[attacker.id].skill:'ぽんっとアタック';
  say(b,`${name}の ${skill}！ ${dealt}ダメージ${mult>1?'・こうかばつぐん！':mult<1?'・少しひかえめ':''}`,mult>1?'good':'info');
- b.events.push({type:'hit',side,damage:dealt,special,mult});
+ b.events.push({type:'hit',side,actor:attacker.id,target:defender.id,element:attacker.id==='storm'?'storm':element,special,mult,damage:dealt,blocked:inputGuard,skill,targetHp:defender.hp,actorEnergy:attacker.energy});
  if(special&&role==='guard'){attacker.guard=true;say(b,`${name}は、技のあと身をまもった。`);}
  if(special&&role==='tempo'){defender.energy=Math.max(0,defender.energy-2);say(b,'相手の気力を2へらした！');}
- if(special&&role==='heal'){const team=side==='ally'?b.allies:b.enemies;for(const c of team)if(c.hp>0)c.hp=Math.min(c.maxHp,c.hp+Math.ceil(c.maxHp*.16));say(b,`${name}のやさしさで、チームのHPが回復！`,'good');b.events.push({type:'heal',side});}
+ if(special&&role==='heal'){const team=side==='ally'?b.allies:b.enemies;for(const c of team)if(c.hp>0)c.hp=Math.min(c.maxHp,c.hp+Math.ceil(c.maxHp*.16));say(b,`${name}のやさしさで、チームのHPが回復！`,'good');b.events.push({type:'heal',side,actor:attacker.id,element,heals:team.map(c=>({id:c.id,hp:c.hp}))});}
 }
 function checkEnemy(b){
  if(b.enemies[b.enemy].hp>0)return false;
@@ -33,6 +33,13 @@ function checkEnemy(b){
 }
 function enemyTurn(b){
  const foe=b.enemies[b.enemy],ally=b.allies[b.active];
+ if(b.kind==='boss'){
+  if(b.bossBeat%3===0){foe.energy=5;say(b,'ヴォルガが嵐の力をためている！ 次は大技。まもる準備を！','warning');b.events.push({type:'charge',side:'enemy',actor:'storm',element:'storm',skill:'嵐のチャージ'});}
+  else hit(b,foe,ally,b.bossBeat%3===1,'enemy');
+  b.bossBeat++;
+  if(ally.hp<=0){say(b,BY_ID[ally.id].name+'はひと休み。');const next=b.allies.findIndex(c=>c.hp>0);if(next<0){b.status='lost';b.events.push({type:'end'});}else{b.active=next;b.events.push({type:'ally-switch'});say(b,BY_ID[b.allies[next].id].name+'にバトンタッチ！');}}return;
+ }
+
  if(foe.hp<=0||ally.hp<=0)return;
  // Keepers occasionally telegraph a guard; wild creatures use a readable cadence.
  if(b.kind==='keeper'&&b.turn%4===0){foe.guard=true;foe.energy=Math.min(5,foe.energy+2);say(b,`${BY_ID[foe.id].name}は身をまもった。つぎの攻撃を受けとめる。`);b.events.push({type:'guard',side:'enemy'});}
@@ -49,14 +56,14 @@ export function resolveTurn(input,action){
  if(action.type==='befriend'&&b.kind!=='wild')return input;
  if(action.type==='leave'){b.status='fled';say(b,'またね、と手をふった。');return b;}
  b.turn++;ally.guard=false;
- if(action.type==='attack'||action.type==='special'){hit(b,ally,b.enemies[b.enemy],action.type==='special','ally');if(checkEnemy(b))return b;}
- else if(action.type==='guard'){ally.guard=true;ally.energy=Math.min(5,ally.energy+2);say(b,`${BY_ID[ally.id].name}はまもりのポーズ。気力が2回復！`);b.events.push({type:'guard',side:'ally'});}
- else if(action.type==='heal'){ally.energy-=2;const amount=Math.min(ally.maxHp-ally.hp,Math.round(ally.maxHp*.4));ally.hp+=amount;say(b,`${BY_ID[ally.id].name}の深呼吸。HPが${amount}回復！`,'good');b.events.push({type:'heal',side:'ally'});}
+ if(action.type==='attack'||action.type==='special'){hit(b,ally,b.enemies[b.enemy],action.type==='special','ally');if(checkEnemy(b))return b;if(b.kind==='boss'&&b.phase===1&&b.enemies[0].hp<=b.enemies[0].maxHp*.5){b.phase=2;b.bossBeat=0;b.enemies[0].type='tide';say(b,'嵐のよろいが砕けた！ ヴォルガが覚醒。しずくの力へ変化！','warning');b.events.push({type:'phase',side:'enemy',actor:'storm',element:'storm'});}}
+ else if(action.type==='guard'){ally.guard=true;ally.energy=Math.min(5,ally.energy+2);say(b,`${BY_ID[ally.id].name}はまもりのポーズ。気力が2回復！`);b.events.push({type:'guard',side:'ally',actor:ally.id,element:BY_ID[ally.id].type,energy:ally.energy,hp:ally.hp});}
+ else if(action.type==='heal'){ally.energy-=2;const amount=Math.min(ally.maxHp-ally.hp,Math.round(ally.maxHp*.4));ally.hp+=amount;say(b,`${BY_ID[ally.id].name}の深呼吸。HPが${amount}回復！`,'good');b.events.push({type:'heal',side:'ally',actor:ally.id,element:BY_ID[ally.id].type});}
  else if(action.type==='switch'){b.active=action.index;b.allies[b.active].guard=false;say(b,`${BY_ID[b.allies[b.active].id].name}、よろしく！`);b.events.push({type:'ally-switch'});}
  else if(action.type==='befriend'){
-   if(canBefriend(input)){b.status='befriended';say(b,`${BY_ID[b.enemies[b.enemy].id].name}と、ともだちになった！`,'good');b.events.push({type:'friend'});return b;}
+   if(canBefriend(input)){b.status='befriended';say(b,`${BY_ID[b.enemies[b.enemy].id].name}と、ともだちになった！`,'good');b.events.push({type:'friend',side:'enemy',element:BY_ID[b.enemies[b.enemy].id].type});return b;}
    say(b,'まだ少し緊張しているみたい。HPを40%以下にしてから声をかけよう。');
  }
  enemyTurn(b);return b;
 }
-export function enemyIntent(b){const next=b.turn+1,foe=b.enemies[b.enemy];if(b.kind==='keeper'&&next%4===0)return 'つぎは、まもるかも';return foe.energy>=2&&next%3===0?'つぎは、得意技の予感！':'つぎは、軽いアタック';}
+export function enemyIntent(b){const next=b.turn+1,foe=b.enemies[b.enemy];if(b.kind==='boss')return b.bossBeat%3===0?'次はチャージ。回復・交代のチャンス！':b.bossBeat%3===1?'⚠ 次は大技！ まもると力を減らせる':'次は爪のアタック';if(b.kind==='keeper'&&next%4===0)return 'つぎは、まもるかも';return foe.energy>=2&&next%3===0?'つぎは、得意技の予感！':'つぎは、軽いアタック';}
